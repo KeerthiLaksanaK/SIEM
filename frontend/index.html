@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIEM Mini Platform</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">
+      <span class="logo-icon">⬡</span>
+      <div>
+        <h1>SIEM MINI PLATFORM</h1>
+        <p>Security Information and Event Management</p>
+      </div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="status-badge online" id="systemStatus">● SIEM ONLINE</span>
+    <span class="header-time" id="headerTime"></span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════ TOOLBAR -->
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button class="btn btn-primary" onclick="collectLogs()">
+      <span>⬇</span> Collect Logs
+    </button>
+    <button class="btn btn-warning" onclick="runDetection()">
+      <span>⚡</span> Run Detection
+    </button>
+    <button class="btn btn-secondary" onclick="refreshDashboard()">
+      <span>↻</span> Refresh Dashboard
+    </button>
+    <button class="btn btn-danger" onclick="confirmReset()">
+      <span>✕</span> Reset Database
+    </button>
+  </div>
+  <div class="toolbar-right">
+    <span id="lastUpdated" class="last-updated">Not yet loaded</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TOAST -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ═══════════════════════════════════════════════════════ STATS CARDS -->
+<div class="container">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">TOTAL EVENTS</div>
+      <div class="stat-value" id="statTotalEvents">—</div>
+      <div class="stat-sub">Normalized log entries</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">TOTAL ALERTS</div>
+      <div class="stat-value" id="statTotalAlerts">—</div>
+      <div class="stat-sub">Security alerts generated</div>
+    </div>
+    <div class="stat-card critical">
+      <div class="stat-label">CRITICAL</div>
+      <div class="stat-value" id="statCritical">—</div>
+      <div class="stat-sub">Critical severity alerts</div>
+    </div>
+    <div class="stat-card high">
+      <div class="stat-label">HIGH</div>
+      <div class="stat-value" id="statHigh">—</div>
+      <div class="stat-sub">High severity alerts</div>
+    </div>
+    <div class="stat-card medium">
+      <div class="stat-label">MEDIUM</div>
+      <div class="stat-value" id="statMedium">—</div>
+      <div class="stat-sub">Medium severity alerts</div>
+    </div>
+    <div class="stat-card open">
+      <div class="stat-label">OPEN ALERTS</div>
+      <div class="stat-value" id="statOpen">—</div>
+      <div class="stat-sub">Awaiting investigation</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ CHARTS -->
+  <div class="charts-grid">
+    <div class="card">
+      <div class="card-header">Alerts by Severity</div>
+      <div class="chart-wrap"><canvas id="chartSeverity"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header">Events by Source</div>
+      <div class="chart-wrap"><canvas id="chartSource"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header">Alert Types</div>
+      <div class="chart-wrap"><canvas id="chartAlertTypes"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header">Event Timeline</div>
+      <div class="chart-wrap"><canvas id="chartTimeline"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ ALERTS TABLE -->
+  <div class="card">
+    <div class="card-header">
+      <span>Security Alerts</span>
+      <div class="filter-row">
+        <select id="filterAlertSeverity" onchange="filterAlerts()">
+          <option value="">All Severities</option>
+          <option value="CRITICAL">Critical</option>
+          <option value="HIGH">High</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="LOW">Low</option>
+        </select>
+        <select id="filterAlertStatus" onchange="filterAlerts()">
+          <option value="">All Statuses</option>
+          <option value="OPEN">Open</option>
+          <option value="INVESTIGATING">Investigating</option>
+          <option value="RESOLVED">Resolved</option>
+          <option value="FALSE_POSITIVE">False Positive</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="alertsTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>TIME</th>
+            <th>ALERT TYPE</th>
+            <th>SOURCE IP</th>
+            <th>SEVERITY</th>
+            <th>EVENTS</th>
+            <th>STATUS</th>
+            <th>ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody id="alertsBody">
+          <tr><td colspan="8" class="empty-row">No alerts. Click "Collect Logs" then "Run Detection".</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ EVENTS TABLE -->
+  <div class="card">
+    <div class="card-header">
+      <span>Security Events</span>
+      <div class="filter-row">
+        <select id="filterSource" onchange="filterEvents()">
+          <option value="">All Sources</option>
+          <option value="authentication">Authentication</option>
+          <option value="web">Web</option>
+          <option value="network">Network</option>
+        </select>
+        <select id="filterEventType" onchange="filterEvents()">
+          <option value="">All Types</option>
+          <option value="login_failed">Login Failed</option>
+          <option value="login_success">Login Success</option>
+          <option value="http_request">HTTP Request</option>
+          <option value="admin_access_denied">Admin Denied</option>
+          <option value="network_connection">Network Connection</option>
+        </select>
+        <select id="filterSeverity" onchange="filterEvents()">
+          <option value="">All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <input type="text" id="filterIP" placeholder="Filter by IP..." oninput="filterEvents()" />
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="eventsTable">
+        <thead>
+          <tr>
+            <th>TIME</th>
+            <th>SOURCE</th>
+            <th>EVENT TYPE</th>
+            <th>SOURCE IP</th>
+            <th>USERNAME</th>
+            <th>STATUS</th>
+            <th>SEVERITY</th>
+          </tr>
+        </thead>
+        <tbody id="eventsBody">
+          <tr><td colspan="7" class="empty-row">No events collected yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ ALERT DETAIL MODAL -->
+<div id="alertModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="modalTitle">Alert Details</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>
